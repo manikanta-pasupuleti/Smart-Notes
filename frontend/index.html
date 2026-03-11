@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Notes</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Header -->
+    <header>
+        <div class="header-inner">
+            <div class="logo">
+                <span class="logo-icon">&#128221;</span>
+                <h1>Smart Notes</h1>
+            </div>
+            <div class="header-actions">
+                <input type="text" id="searchInput" placeholder="Search notes... (Ctrl+F)" />
+                <button id="searchBtn" class="btn btn-secondary">Search</button>
+                <button id="clearSearchBtn" class="btn btn-ghost" style="display:none;">Clear</button>
+                <button id="exportBtn" class="btn btn-ghost" title="Export notes as JSON">&#8595; Export</button>
+                <button id="darkModeBtn" class="btn-icon-round" title="Toggle dark mode">&#9790;</button>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <h3>Categories</h3>
+            <ul id="categoryList">
+                <li class="active" data-category="all">&#128196; All Notes</li>
+                <li data-category="General">&#128308; General</li>
+                <li data-category="Study">&#128997; Study</li>
+                <li data-category="Personal">&#128999; Personal</li>
+                <li data-category="Work">&#129001; Work</li>
+            </ul>
+
+            <div class="sidebar-divider"></div>
+
+            <ul class="sidebar-extra">
+                <li id="trashNavBtn">&#128465; Trash <span id="trashCount" class="trash-badge" style="display:none;"></span></li>
+            </ul>
+
+            <button id="addNoteBtn" class="btn btn-primary full-width">+ New Note &nbsp;<kbd>Ctrl+N</kbd></button>
+
+            <!-- Stats widget -->
+            <div class="stats-widget" id="statsWidget">
+                <h4>Overview</h4>
+                <div class="stat-row"><span>Total</span><strong id="statTotal">—</strong></div>
+                <div class="stat-row"><span>Pinned</span><strong id="statPinned">—</strong></div>
+                <div class="stat-row"><span>In Trash</span><strong id="statTrashed">—</strong></div>
+                <div class="stat-divider"></div>
+                <div id="statCategories"></div>
+            </div>
+        </aside>
+
+        <!-- Notes Grid -->
+        <section class="notes-section">
+            <div class="notes-header">
+                <div class="notes-header-left">
+                    <h2 id="sectionTitle">All Notes</h2>
+                    <span id="noteCount" class="badge">0</span>
+                </div>
+                <div class="notes-header-right">
+                    <label for="sortSelect" class="sort-label">Sort:</label>
+                    <select id="sortSelect" class="sort-select">
+                        <option value="newest">Newest First</option>
+                        <option value="oldest">Oldest First</option>
+                        <option value="title">Title A–Z</option>
+                    </select>
+                </div>
+            </div>
+            <div id="noteGrid" class="note-grid">
+                <p id="emptyMsg" class="empty-msg" style="display:none;">No notes found. Press Ctrl+N to create one!</p>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal: Add / Edit Note -->
+    <div id="noteModal" class="modal-overlay" style="display:none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="modalTitle">New Note</h2>
+                <button class="close-btn" id="closeModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="noteId" />
+                <div class="form-group">
+                    <label for="noteTitle">Title <span class="required">*</span></label>
+                    <input type="text" id="noteTitle" placeholder="Enter note title..." />
+                    <span id="titleError" class="error-msg"></span>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="noteCategory">Category</label>
+                        <select id="noteCategory">
+                            <option value="General">General</option>
+                            <option value="Study">Study</option>
+                            <option value="Personal">Personal</option>
+                            <option value="Work">Work</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Color Label</label>
+                        <div class="color-picker" id="colorPicker">
+                            <span class="color-swatch active" data-color="default" style="background:#e0e7ff;" title="Default"></span>
+                            <span class="color-swatch" data-color="red"    style="background:#fecaca;" title="Red"></span>
+                            <span class="color-swatch" data-color="yellow" style="background:#fef08a;" title="Yellow"></span>
+                            <span class="color-swatch" data-color="green"  style="background:#bbf7d0;" title="Green"></span>
+                            <span class="color-swatch" data-color="blue"   style="background:#bae6fd;" title="Blue"></span>
+                            <span class="color-swatch" data-color="purple" style="background:#e9d5ff;" title="Purple"></span>
+                            <span class="color-swatch" data-color="orange" style="background:#fed7aa;" title="Orange"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <div class="content-label-row">
+                        <label for="noteContent">Content</label>
+                        <span id="wordCount" class="word-count">0 words</span>
+                    </div>
+                    <textarea id="noteContent" rows="6" placeholder="Write your note here..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancelBtn" class="btn btn-ghost">Cancel</button>
+                <button id="saveBtn" class="btn btn-primary">Save Note</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: View Note -->
+    <div id="viewModal" class="modal-overlay" style="display:none;">
+        <div class="modal">
+            <div class="modal-header" id="viewModalHeader">
+                <div>
+                    <h2 id="viewTitle"></h2>
+                    <div class="view-meta">
+                        <span id="viewCategory" class="note-card-category"></span>
+                        <span id="viewDate" class="note-card-date"></span>
+                    </div>
+                </div>
+                <button class="close-btn" id="closeViewModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="viewContent" class="view-content"></p>
+            </div>
+            <div class="modal-footer">
+                <button id="viewEditBtn" class="btn btn-primary">Edit Note</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Trash -->
+    <div id="trashModal" class="modal-overlay" style="display:none;">
+        <div class="modal modal-wide">
+            <div class="modal-header">
+                <h2>&#128465; Trash</h2>
+                <button class="close-btn" id="closeTrashModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="trash-hint">Notes in trash are permanently deleted after 30 days.</p>
+                <div id="trashList" class="trash-list"></div>
+                <p id="trashEmpty" class="empty-msg" style="display:none; margin-top:16px;">Trash is empty.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Confirm Delete -->
+    <div id="deleteModal" class="modal-overlay" style="display:none;">
+        <div class="modal modal-sm">
+            <div class="modal-header">
+                <h2>Move to Trash</h2>
+                <button class="close-btn" id="closeDeleteModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Move <strong id="deleteNoteName"></strong> to trash?</p>
+            </div>
+            <div class="modal-footer">
+                <button id="cancelDeleteBtn" class="btn btn-ghost">Cancel</button>
+                <button id="confirmDeleteBtn" class="btn btn-danger">Move to Trash</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast" style="display:none;"></div>
+
+    <!-- Keyboard shortcuts hint -->
+    <div class="shortcuts-hint">
+        <kbd>Ctrl+N</kbd> New &nbsp; <kbd>Ctrl+F</kbd> Search &nbsp; <kbd>Esc</kbd> Close
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
