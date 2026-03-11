@@ -2,7 +2,7 @@
 //  Smart Notes — Frontend App
 // ============================
 
-const API = 'http://localhost:8080/api/notes';
+const API = 'https://smart-notes-1-aqab.onrender.com/api/notes';
 
 const COLOR_BG_LIGHT = { default:'#ffffff', red:'#fff5f5', yellow:'#fefce8', green:'#f0fff4', blue:'#f0f9ff', purple:'#faf5ff', orange:'#fff8f0' };
 const COLOR_BG_DARK  = { default:'#1e293b', red:'#2d1b1b', yellow:'#2d2a1b', green:'#1b2d22', blue:'#1b222d', purple:'#261b2d', orange:'#2d221b' };
