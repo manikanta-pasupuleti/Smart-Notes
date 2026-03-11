@@ -4,6 +4,43 @@
 
 const API = 'https://smart-notes-1-aqab.onrender.com/api/notes';
 
+// =====================
+//  Authentication
+// =====================
+
+function checkAuth() {
+    const token = localStorage.getItem('token');
+    const user = localStorage.getItem('user');
+    
+    if (!token || !user) {
+        window.location.href = 'login.html';
+        return;
+    }
+    
+    try {
+        const userData = JSON.parse(user);
+        document.getElementById('userDisplay').textContent = `👤 ${userData.username}`;
+        document.getElementById('logoutBtn').style.display = 'block';
+        document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+    } catch (e) {
+        window.location.href = 'login.html';
+    }
+}
+
+function handleLogout() {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.href = 'login.html';
+}
+
+function getAuthHeaders() {
+    const token = localStorage.getItem('token');
+    return {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+    };
+}
+
 const COLOR_BG_LIGHT = { default:'#ffffff', red:'#fff5f5', yellow:'#fefce8', green:'#f0fff4', blue:'#f0f9ff', purple:'#faf5ff', orange:'#fff8f0' };
 const COLOR_BG_DARK  = { default:'#1e293b', red:'#2d1b1b', yellow:'#2d2a1b', green:'#1b2d22', blue:'#1b222d', purple:'#261b2d', orange:'#2d221b' };
 
@@ -81,8 +118,15 @@ const toast = document.getElementById('toast');
 // ======================
 
 const req = (url, opts = {}) =>
-    fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts })
-        .then(r => { if (!r.ok) throw new Error(r.status); return r.status === 204 ? null : r.json(); });
+    fetch(url, { headers: getAuthHeaders(), ...opts })
+        .then(r => { 
+            if (r.status === 401) {
+                window.location.href = 'login.html';
+                throw new Error('Unauthorized');
+            }
+            if (!r.ok) throw new Error(r.status); 
+            return r.status === 204 ? null : r.json(); 
+        });
 
 const fetchAllNotes     = (sort='newest')         => req(`${API}?sort=${sort}`);
 const createNote        = data                    => req(API, { method:'POST', body: JSON.stringify(data) });
@@ -558,5 +602,8 @@ function showToast(msg, type = '') {
 // ======================
 //  Init
 // ======================
+
+// Check authentication first
+checkAuth();
 
 loadNotes();
