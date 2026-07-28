@@ -2,7 +2,7 @@
 //  Smart Notes — Frontend App
 // ============================
 
-const API = 'http://localhost:8080/api/notes';
+const API = "https://smart-notes-1-aqab.onrender.com/api/notes";
 
 // =====================
 //  Authentication
