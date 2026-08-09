@@ -35,3 +35,4 @@ application-local.properties
 # Node (if any)
 node_modules/
 npm-debug.log
+backend/startup-error.txt

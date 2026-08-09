@@ -1,9 +1,14 @@
 package com.smartnotes.service;
 
 import com.smartnotes.model.Note;
+import com.smartnotes.model.User;
 import com.smartnotes.repository.NoteRepository;
+import com.smartnotes.repository.UserRepository;
+import com.smartnotes.security.JwtTokenProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -14,28 +19,38 @@ public class NoteService {
     @Autowired
     private NoteRepository noteRepository;
 
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private JwtTokenProvider jwtTokenProvider;
+
     // CREATE
-    public Note createNote(Note note) {
+    public Note createNote(String authorizationHeader, Note note) {
+        User authenticatedUser = getAuthenticatedUser(authorizationHeader);
+        note.setUser(authenticatedUser);
         return noteRepository.save(note);
     }
 
     // READ ALL ACTIVE (with sort)
-    public List<Note> getAllNotes(String sort) {
-        List<Note> all = noteRepository.findByDeletedFalse();
+    public List<Note> getAllNotes(String authorizationHeader, String sort) {
+        User authenticatedUser = getAuthenticatedUser(authorizationHeader);
+        List<Note> all = noteRepository.findByUserAndDeletedFalse(authenticatedUser);
         sortList(all, sort);
         all.sort(Comparator.comparing(Note::isPinned).reversed());
         return all;
     }
 
     // READ BY ID
-    public Optional<Note> getNoteById(Long id) {
-        return noteRepository.findById(id);
+    public Note getNoteById(Long id, String authorizationHeader) {
+        User authenticatedUser = getAuthenticatedUser(authorizationHeader);
+        return getOwnedNoteOrNotFound(id, authenticatedUser);
     }
 
     // UPDATE
-    public Note updateNote(Long id, Note updatedNote) {
-        Note existing = noteRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Note not found: " + id));
+    public Note updateNote(Long id, String authorizationHeader, Note updatedNote) {
+        User authenticatedUser = getAuthenticatedUser(authorizationHeader);
+        Note existing = getOwnedNoteOrNotFound(id, authenticatedUser);
         existing.setTitle(updatedNote.getTitle());
         existing.setContent(updatedNote.getContent());
         existing.setCategory(updatedNote.getCategory());
@@ -44,58 +59,61 @@ public class NoteService {
     }
 
     // SOFT DELETE (move to trash)
-    public void deleteNote(Long id) {
-        Note note = noteRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Note not found: " + id));
+    public void deleteNote(Long id, String authorizationHeader) {
+        User authenticatedUser = getAuthenticatedUser(authorizationHeader);
+        Note note = getOwnedNoteOrNotFound(id, authenticatedUser);
         note.setDeleted(true);
         noteRepository.save(note);
     }
 
     // RESTORE from trash
-    public Note restoreNote(Long id) {
-        Note note = noteRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Note not found: " + id));
+    public Note restoreNote(Long id, String authorizationHeader) {
+        User authenticatedUser = getAuthenticatedUser(authorizationHeader);
+        Note note = getOwnedNoteOrNotFound(id, authenticatedUser);
         note.setDeleted(false);
         return noteRepository.save(note);
     }
 
     // PERMANENT DELETE
-    public void permanentDelete(Long id) {
-        if (!noteRepository.existsById(id))
-            throw new RuntimeException("Note not found: " + id);
-        noteRepository.deleteById(id);
+    public void permanentDelete(Long id, String authorizationHeader) {
+        User authenticatedUser = getAuthenticatedUser(authorizationHeader);
+        Note note = getOwnedNoteOrNotFound(id, authenticatedUser);
+        noteRepository.delete(note);
     }
 
     // GET TRASH
-    public List<Note> getTrash() {
-        List<Note> trashed = noteRepository.findByDeletedTrue();
+    public List<Note> getTrash(String authorizationHeader) {
+        User authenticatedUser = getAuthenticatedUser(authorizationHeader);
+        List<Note> trashed = noteRepository.findByUserAndDeletedTrue(authenticatedUser);
         trashed.sort(Comparator.comparing(Note::getUpdatedAt).reversed());
         return trashed;
     }
 
     // DUPLICATE
-    public Note duplicateNote(Long id) {
-        Note original = noteRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Note not found: " + id));
+    public Note duplicateNote(Long id, String authorizationHeader) {
+        User authenticatedUser = getAuthenticatedUser(authorizationHeader);
+        Note original = getOwnedNoteOrNotFound(id, authenticatedUser);
         Note copy = new Note("Copy of " + original.getTitle(),
                              original.getContent(), original.getCategory());
         copy.setColor(original.getColor() != null ? original.getColor() : "default");
+        copy.setUser(authenticatedUser);
         return noteRepository.save(copy);
     }
 
     // TOGGLE PIN
-    public Note togglePin(Long id) {
-        Note note = noteRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Note not found: " + id));
+    public Note togglePin(Long id, String authorizationHeader) {
+        User authenticatedUser = getAuthenticatedUser(authorizationHeader);
+        Note note = getOwnedNoteOrNotFound(id, authenticatedUser);
         note.setPinned(!note.isPinned());
         return noteRepository.save(note);
     }
 
     // STATS
-    public Map<String, Object> getStats() {
-        List<Note> active = noteRepository.findByDeletedFalse();
+    public Map<String, Object> getStats(String authorizationHeader) {
+        User authenticatedUser = getAuthenticatedUser(authorizationHeader);
+        List<Note> active = noteRepository.findByUserAndDeletedFalse(authenticatedUser);
         long pinned  = active.stream().filter(Note::isPinned).count();
-        long trashed = noteRepository.findByDeletedTrue().size();
+        long trashed = noteRepository.findByUserAndDeletedTrue(authenticatedUser).size();
 
         Map<String, Long> byCategory = active.stream()
             .collect(Collectors.groupingBy(
@@ -112,13 +130,39 @@ public class NoteService {
     }
 
     // SEARCH
-    public List<Note> searchNotes(String keyword) {
-        return noteRepository.searchByKeyword(keyword);
+    public List<Note> searchNotes(String authorizationHeader, String keyword) {
+        User authenticatedUser = getAuthenticatedUser(authorizationHeader);
+        return noteRepository.searchByKeywordAndUser(keyword, authenticatedUser);
     }
 
     // FILTER BY CATEGORY
-    public List<Note> getNotesByCategory(String category) {
-        return noteRepository.findByCategoryIgnoreCaseAndDeletedFalse(category);
+    public List<Note> getNotesByCategory(String authorizationHeader, String category) {
+        User authenticatedUser = getAuthenticatedUser(authorizationHeader);
+        return noteRepository.findByUserAndCategoryIgnoreCaseAndDeletedFalse(authenticatedUser, category);
+    }
+
+    private User getAuthenticatedUser(String authorizationHeader) {
+        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing authorization token");
+        }
+
+        String token = authorizationHeader.substring(7).trim();
+        if (token.isEmpty() || !jwtTokenProvider.validateToken(token)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid authorization token");
+        }
+
+        String username = jwtTokenProvider.getUsernameFromToken(token);
+        if (username == null || username.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid authorization token");
+        }
+
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user not found"));
+    }
+
+    private Note getOwnedNoteOrNotFound(Long id, User authenticatedUser) {
+        return noteRepository.findByIdAndUser(id, authenticatedUser)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Note not found"));
     }
 
     // Helper: sort list in place

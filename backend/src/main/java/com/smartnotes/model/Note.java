@@ -1,5 +1,6 @@
 package com.smartnotes.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import java.time.LocalDateTime;
@@ -30,6 +31,11 @@ public class Note {
 
     @Column(nullable = false)
     private boolean deleted = false;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    @JsonIgnore
+    private User user;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -77,6 +83,10 @@ public class Note {
 
     public boolean isDeleted()                { return deleted; }
     public void setDeleted(boolean d)         { this.deleted = d; }
+
+    @JsonIgnore
+    public User getUser()                     { return user; }
+    public void setUser(User user)            { this.user = user; }
 
     public LocalDateTime getCreatedAt()       { return createdAt; }
     public void setCreatedAt(LocalDateTime t) { this.createdAt = t; }
